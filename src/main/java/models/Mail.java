@@ -3,6 +3,7 @@ package models;
 import java.io.Serializable;
 
 public class Mail implements Serializable {
+
     private String property = "1";
 
     public Mail(String property) {

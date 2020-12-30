@@ -11,4 +11,7 @@ public class ServerGUIController {
     @FXML
     private ListView<?> ServerLogView;
 
+
+
+
 }

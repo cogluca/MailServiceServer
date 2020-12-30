@@ -112,4 +112,54 @@ public class FileManager {
         return retList;
     }
 
+    public static synchronized List<Mail> readOutbox (String username) {
+
+        List<Mail> retOutboxList = new ArrayList<>();
+        List<String> mails = getNameMail(username);
+
+        FileInputStream fetchStream = null;
+        ObjectInputStream fetchFile = null;
+
+        Mail cachedMail;
+
+        for (String outmail : mails) {
+            try {
+                String path = filepath + "\\" + username +"\\" + "Outbox"+ "\\" + outmail;
+                fetchStream = new FileInputStream(path);
+                fetchFile = new ObjectInputStream(fetchStream);
+                cachedMail = (Mail) fetchFile.readObject();
+                retOutboxList.add(cachedMail);
+
+            }
+            catch(IOException | ClassNotFoundException e) {
+                System.out.println(e.getMessage());
+            }
+            finally {
+                try {
+                    if (fetchFile != null)
+                        fetchFile.close();
+                    if (fetchStream != null)
+                        fetchStream.close();
+                }
+                catch (IOException ex){
+                    System.out.println(ex.getMessage());
+                }
+            }
+        }
+        return retOutboxList;
+    }
+
+    public static synchronized int deleteMessage (String mailId, String user) {
+
+        try {
+            File toDelete = new File(filepath + "\\" + user + "\\" + mailId);
+            toDelete.delete();
+            System.out.println("Successfully deleted file");
+        } catch (NullPointerException e) {
+            System.out.println("Unsuccessfully deleted file ");
+            System.out.println(e.getMessage());
+            return -1;
+        }
+        return 1;
+    }
 }
