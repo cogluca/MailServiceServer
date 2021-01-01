@@ -8,12 +8,14 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-
+// TODO: Implementare mutua esclusione
 public class FileManager {
 
 
-    private static final String filepath="C:\\Users\\Alessio\\Desktop\\file\\";
+    private static final String filepath= System.getProperty("user.dir") + "\\persistance\\";
 
+    private static final String INBOX_NAME = "Inbox";
+    private static final String OUTBOX_NAME = "Outbox";
 
     public static void main(String[] args) {
 
@@ -22,8 +24,10 @@ public class FileManager {
             final int finali = i;
             Runnable worker = () -> {
                 Mail f = new Mail(Integer.toString(finali));
+                f.setFrom("user1");
+                f.setTo("user1");
 
-               // sendMail(f);
+                //sendMail(f);
                 System.out.println("Leggo: ");
                 for(Mail m : readInbox("user1")) {
                     System.out.print(m.toString() + " , " );
@@ -50,33 +54,71 @@ public class FileManager {
     }
 
     /**
-     *
-     * @param obj
+     * Send a mail from sender to receiver
+     * @param mail
+     * @return integer with status code:
+     *         0: send successful
+     *         -1: Wrong sender
+     *         -2: Wrong receiver
      */
-    public static synchronized void sendMail(Object obj) {
+    public static synchronized int sendMail(Mail mail) {
         ObjectOutputStream objectOut;
 
-        File directory = new File(filepath + "\\user1");
-        if(!directory.exists()) {
-            directory.mkdir();
+        String sender = mail.getFrom();
+
+        String receiver = mail.getTo();
+
+        File senderDir = new File(filepath + "\\" + sender);
+        if (userExists(sender)) {
+            if(!senderDir.exists()) {
+                senderDir.mkdir();
+                new File(filepath + "\\" + sender + "\\" + INBOX_NAME).mkdir();
+                new File(filepath + "\\" + sender + "\\" + OUTBOX_NAME).mkdir();
+            }
+        }
+        else {
+            System.out.println("ERROR: WRONG SENDER");
+            return -1;
+        }
+
+        //TODO: Handle multiple receivers
+        File receiverDir = new File(filepath + "\\" + receiver);
+        if(userExists(receiver)) {
+            if (!receiverDir.exists()) {
+                receiverDir.mkdir(); // && isValidUser
+                new File(filepath + "\\" + receiver + "\\" + INBOX_NAME).mkdir();
+                new File(filepath + "\\" + receiver + "\\" + OUTBOX_NAME).mkdir();
+            }
+        }
+        else {
+            System.out.println("ERROR: WRONG RECEIVER");
+            return -2;
         }
 
         try {
-            FileOutputStream fileOut = new FileOutputStream(filepath + "\\user1\\" + System.currentTimeMillis() + ".txt");
+
+            // Invia il messaggio nella casella degli
+            FileOutputStream fileOut = new FileOutputStream(filepath + "\\" + sender + "\\" + OUTBOX_NAME + "\\" + System.currentTimeMillis() + ".txt");
             objectOut = new ObjectOutputStream(fileOut);
-            objectOut.writeObject(obj);
+            objectOut.writeObject(mail);
+            objectOut.close();
+
+            fileOut = new FileOutputStream(filepath + receiver + "\\"  + INBOX_NAME + "\\" + System.currentTimeMillis() + ".txt");
+            objectOut = new ObjectOutputStream(fileOut);
+            objectOut.writeObject(mail);
             objectOut.close();
 
 
         } catch (Exception ex) {
             ex.printStackTrace();
         }
-
+        return 0;
     }
 
     private static synchronized List<String> getNameMail(String username) {
         List<String> textFiles = new ArrayList<String>();
-        File dir = new File("C:\\Users\\Alessio\\Desktop\\file\\" + username);
+        File dir = new File(filepath +"\\" + username + "\\" +  INBOX_NAME );
+        if(dir.listFiles() == null) return textFiles;
         for (File file : dir.listFiles()) {
             if (file.getName().endsWith((".txt"))) {
                 textFiles.add(file.getName());
@@ -91,13 +133,15 @@ public class FileManager {
     public static synchronized List<Mail> readInbox(String username) {
         List<Mail> retList = new ArrayList<>();
         List<String> mails = getNameMail(username);
+        System.out.println(mails.size());
 
         Mail o;
         ObjectInputStream objectOut;
 
         for (String mailPath : mails) {
             try {
-                String m = filepath + "\\" + username + "\\" + mailPath;
+                String m = filepath + "\\" + username + "\\" + INBOX_NAME + "\\" + mailPath;
+                System.out.println(m);
                 FileInputStream fileOut = new FileInputStream(m);
                 objectOut = new ObjectInputStream(fileOut);
                 o = (Mail)objectOut.readObject();
@@ -124,7 +168,7 @@ public class FileManager {
 
         for (String outmail : mails) {
             try {
-                String path = filepath + "\\" + username +"\\" + "Outbox"+ "\\" + outmail;
+                String path = filepath + "\\" + username +"\\" + OUTBOX_NAME + "\\" + outmail;
                 fetchStream = new FileInputStream(path);
                 fetchFile = new ObjectInputStream(fetchStream);
                 cachedMail = (Mail) fetchFile.readObject();
@@ -161,5 +205,24 @@ public class FileManager {
             return -1;
         }
         return 1;
+    }
+
+
+    public static synchronized boolean userExists (String user) {
+        File userList = new File(filepath + "\\users.txt");
+        try (BufferedReader br = new BufferedReader(new FileReader(userList))) {
+            String line;
+            while ((line = br.readLine()) != null) {
+                if(user.equals(line))
+                    return true;
+            }
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
+        return false;
     }
 }
