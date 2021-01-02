@@ -51,6 +51,9 @@ public class EchoClient {
                         outputStream.writeUTF("SEND");
                         outputStream.flush();
 
+                        outputStream.writeUTF(sessID);
+                        outputStream.flush();
+
                         User sender = new User("luca.cognigni@mail.com");
                         List<User> receiver = new ArrayList<>();
                         receiver.add(new User("alessio.vannella@mail.com"));

@@ -48,8 +48,7 @@ public class ServerModel {
     }
 
     public void removeUser(String user) {
-        if (loggedUserList.contains(user))
-            loggedUserList.remove(user);
+        loggedUserList.remove(user);
     }
 
 }

@@ -38,12 +38,12 @@ public class FileManager {
 
         List<User> receiver = mail.getReceiver();
 
-        File senderDir = new File(filepath + "\\" + sender);
+        File senderDir = new File(filepath + "\\" + sender.getUsername());
         if (userExists(sender)) {
             if(!senderDir.exists()) {
                 senderDir.mkdir();
-                new File(filepath + "\\" + sender + "\\" + INBOX_NAME).mkdir();
-                new File(filepath + "\\" + sender + "\\" + OUTBOX_NAME).mkdir();
+                new File(filepath + "\\" + sender.getUsername() + "\\" + INBOX_NAME).mkdir();
+                new File(filepath + "\\" + sender.getUsername() + "\\" + OUTBOX_NAME).mkdir();
             }
         }
         else {
@@ -51,15 +51,13 @@ public class FileManager {
             return -1;
         }
 
-        //TODO: Handle multiple receivers
         for (User u : receiver) {
             File receiverDir = new File(filepath + "\\" + u.getUsername());
-
             if(userExists(u)) {
                 if (!receiverDir.exists()) {
-                    receiverDir.mkdir(); // && isValidUser
-                    new File(filepath + "\\" + receiver + "\\" + INBOX_NAME).mkdir();
-                    new File(filepath + "\\" + receiver + "\\" + OUTBOX_NAME).mkdir();
+                    receiverDir.mkdir();
+                    new File(filepath + "\\" + u.getUsername() + "\\" + INBOX_NAME).mkdir();
+                    new File(filepath + "\\" + u.getUsername() + "\\" + OUTBOX_NAME).mkdir();
                 }
             }
             else {
@@ -71,13 +69,13 @@ public class FileManager {
         try {
 
             // Invia il messaggio nella casella degli
-            FileOutputStream fileOut = new FileOutputStream(filepath + "\\" + sender + "\\" + OUTBOX_NAME + "\\" + System.currentTimeMillis() + ".txt");
+            FileOutputStream fileOut = new FileOutputStream(filepath + "\\" + sender.getUsername() + "\\" + OUTBOX_NAME + "\\" + System.currentTimeMillis() + ".txt");
             objectOut = new ObjectOutputStream(fileOut);
             objectOut.writeObject(mail);
             objectOut.close();
 
             for(User u : receiver) {
-                fileOut = new FileOutputStream(filepath + u.getUsername() + "\\"  + INBOX_NAME + "\\" + System.currentTimeMillis() + ".txt");
+                fileOut = new FileOutputStream(filepath + "\\" + u.getUsername() + "\\"  + INBOX_NAME + "\\" + System.currentTimeMillis() + ".txt");
                 objectOut = new ObjectOutputStream(fileOut);
                 objectOut.writeObject(mail);
                 objectOut.close();

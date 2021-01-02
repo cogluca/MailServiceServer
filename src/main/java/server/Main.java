@@ -48,7 +48,7 @@ public class Main extends Application {
                 while (true) {
                     Socket incoming = s.accept(); // si mette in attesa di una richiesta di connessione e la apre
 
-                    Runnable r = new ServerThread(this, incoming, new User("user1"), serverModel);
+                    Runnable r = new ServerThread(this, incoming, serverModel);
 
                     new Thread(r).start();
                 }

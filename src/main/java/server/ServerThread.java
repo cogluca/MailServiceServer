@@ -21,7 +21,6 @@ class ServerThread implements Runnable {
     private Socket incoming;
     private Main main;
 
-    private User user;
 
     private ServerModel serverModel;
 
@@ -30,10 +29,9 @@ class ServerThread implements Runnable {
      *
      * @param in the incoming socket
      */
-    public ServerThread(Main m, Socket in, User user, ServerModel model) {
+    public ServerThread(Main m, Socket in, ServerModel model) {
         main = m;
         incoming = in;
-        this.user = user;
         this.serverModel = model;
     }
 
@@ -42,7 +40,7 @@ class ServerThread implements Runnable {
 
     }
 
-    private List<Mail> getMessages(boolean type) {
+    private List<Mail> getMessages(User user, boolean type) {
         if (type)
             return FileManager.readInbox(user.getUsername());
         else
@@ -102,7 +100,10 @@ class ServerThread implements Runnable {
                         return;
                     }
 
+
                     Mail getMail = (Mail) inStream.readObject();
+                    Platform.runLater(() -> serverModel.addLog(loggedUser.getUsername() + " trying to send a mail to " + getMail.getReceiver().toString()));
+
                     int status = sendMessage(getMail);
                     String result;
                     switch (status) {
@@ -135,7 +136,7 @@ class ServerThread implements Runnable {
                     System.out.println("Invio l'inbox");
                     Platform.runLater(() -> serverModel.addLog("Invio l'inbox di XXX"));
 
-                    List<Mail> inboxMail = this.getMessages(true);
+                    List<Mail> inboxMail = this.getMessages(loggedUser, true);
 
                     outStream.writeObject(inboxMail);
                     outStream.flush();
@@ -149,7 +150,7 @@ class ServerThread implements Runnable {
                         // TODO: NOT AUTHORIZED USER. CLOSE CONNECTION THE CONNECTION
                         return;
                     }
-                    List<Mail> outboxMail = this.getMessages(false);
+                    List<Mail> outboxMail = this.getMessages(loggedUser, false);
                     Platform.runLater(() -> serverModel.addLog("Invio l'outbox di XXX"));
 
 
@@ -194,10 +195,14 @@ class ServerThread implements Runnable {
                         return;
                     }
 
-                    serverModel.removeUser(loggedUser.getUsername());
-                    serverModel.destroySession(sessID);
-                    Platform.runLater(() ->
-                            serverModel.addLog(loggedUser.getUsername() + " disconnected from server"));
+                    Platform.runLater(() -> {
+                        serverModel.addLog(loggedUser.getUsername() + " disconnected from server");
+                        serverModel.removeUser(loggedUser.getUsername());
+                        serverModel.destroySession(sessID);
+                    }
+
+                    );
+
 
                     break;
                 }
