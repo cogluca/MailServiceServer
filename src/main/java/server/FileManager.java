@@ -1,6 +1,7 @@
 package server;
 
 import models.Mail;
+import models.User;
 
 import java.io.*;
 import java.util.ArrayList;
@@ -19,37 +20,6 @@ public class FileManager {
 
     public static void main(String[] args) {
 
-        ExecutorService executor = Executors.newFixedThreadPool(5);//creating a pool of 5 threads
-        for (int i = 0; i < 10; i++) {
-            final int finali = i;
-            Runnable worker = () -> {
-                Mail f = new Mail(Integer.toString(finali));
-                f.setFrom("user1");
-                f.setTo("user1");
-
-                //sendMail(f);
-                System.out.println("Leggo: ");
-                for(Mail m : readInbox("user1")) {
-                    System.out.print(m.toString() + " , " );
-
-                }
-                System.out.println("");
-
-            };
-
-            executor.execute(worker);//calling execute method of ExecutorService
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
-        }
-        executor.shutdown();
-
-        while (!executor.isTerminated()) {   }
-
-        System.out.println("Finished all threads");
 
     }
 
@@ -64,9 +34,9 @@ public class FileManager {
     public static synchronized int sendMail(Mail mail) {
         ObjectOutputStream objectOut;
 
-        String sender = mail.getFrom();
+        User sender = mail.getSender();
 
-        String receiver = mail.getTo();
+        List<User> receiver = mail.getReceiver();
 
         File senderDir = new File(filepath + "\\" + sender);
         if (userExists(sender)) {
@@ -82,17 +52,20 @@ public class FileManager {
         }
 
         //TODO: Handle multiple receivers
-        File receiverDir = new File(filepath + "\\" + receiver);
-        if(userExists(receiver)) {
-            if (!receiverDir.exists()) {
-                receiverDir.mkdir(); // && isValidUser
-                new File(filepath + "\\" + receiver + "\\" + INBOX_NAME).mkdir();
-                new File(filepath + "\\" + receiver + "\\" + OUTBOX_NAME).mkdir();
+        for (User u : receiver) {
+            File receiverDir = new File(filepath + "\\" + u.getUsername());
+
+            if(userExists(u)) {
+                if (!receiverDir.exists()) {
+                    receiverDir.mkdir(); // && isValidUser
+                    new File(filepath + "\\" + receiver + "\\" + INBOX_NAME).mkdir();
+                    new File(filepath + "\\" + receiver + "\\" + OUTBOX_NAME).mkdir();
+                }
             }
-        }
-        else {
-            System.out.println("ERROR: WRONG RECEIVER");
-            return -2;
+            else {
+                System.out.println("ERROR: WRONG RECEIVER");
+                return -2;
+            }
         }
 
         try {
@@ -103,10 +76,13 @@ public class FileManager {
             objectOut.writeObject(mail);
             objectOut.close();
 
-            fileOut = new FileOutputStream(filepath + receiver + "\\"  + INBOX_NAME + "\\" + System.currentTimeMillis() + ".txt");
-            objectOut = new ObjectOutputStream(fileOut);
-            objectOut.writeObject(mail);
-            objectOut.close();
+            for(User u : receiver) {
+                fileOut = new FileOutputStream(filepath + u.getUsername() + "\\"  + INBOX_NAME + "\\" + System.currentTimeMillis() + ".txt");
+                objectOut = new ObjectOutputStream(fileOut);
+                objectOut.writeObject(mail);
+                objectOut.close();
+
+            }
 
 
         } catch (Exception ex) {
@@ -194,7 +170,6 @@ public class FileManager {
     }
 
     public static synchronized int deleteMessage (String mailId, String user) {
-
         try {
             File toDelete = new File(filepath + "\\" + user + "\\" + mailId);
             toDelete.delete();
@@ -207,17 +182,14 @@ public class FileManager {
         return 1;
     }
 
-
-    public static synchronized boolean userExists (String user) {
+    public static synchronized boolean userExists (User user) {
         File userList = new File(filepath + "\\users.txt");
         try (BufferedReader br = new BufferedReader(new FileReader(userList))) {
             String line;
             while ((line = br.readLine()) != null) {
-                if(user.equals(line))
+                if(user.getUsername().equals(line))
                     return true;
             }
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
         } catch (IOException e) {
             e.printStackTrace();
         }

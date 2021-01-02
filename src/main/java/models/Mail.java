@@ -2,43 +2,47 @@ package models;
 
 import java.io.Serializable;
 import java.sql.Timestamp;
+import java.util.List;
 
 // Model
 public class Mail implements Serializable {
-    private String from, to;
-    //to deve essere una lista di stringhe considerando l'invio multiplo
+
+    private int id;
+    private Timestamp timestamp;
+
+    private User sender;
+    private List<User> receiver;
 
     private String object;
     private String message;
 
-    private Timestamp timestamp;
 
     public Mail() {}
     public Mail(String message) {this.message = message;}
 
 
-    public Mail(String from, String to, String object, String message, Timestamp timestamp) {
-        this.from = from;
-        this.to = to;
+    public Mail(User sender, List<User> receiver, String object, String message, Timestamp timestamp) {
+        this.sender = sender;
+        this.receiver = receiver;
         this.object = object;
         this.message = message;
         this.timestamp = timestamp;
     }
 
-    public String getFrom() {
-        return from;
+    public User getSender() {
+        return sender;
     }
 
-    public void setFrom(String from) {
-        this.from = from;
+    public void setSender(User sender) {
+        this.sender = sender;
     }
 
-    public String getTo() {
-        return to;
+    public List<User> getReceiver() {
+        return receiver;
     }
 
-    public void setTo(String to) {
-        this.to = to;
+    public void setReceiver(List<User> receiver) {
+        this.receiver = receiver;
     }
 
     public String getObject() {
@@ -60,10 +64,11 @@ public class Mail implements Serializable {
     @Override
     public String toString() {
         return "Mail{" +
-                "from='" + from + '\'' +
-                ", to='" + to + '\'' +
+                "sender=" + sender +
+                ", receiver=" + receiver +
                 ", object='" + object + '\'' +
                 ", message='" + message + '\'' +
+                ", timestamp=" + timestamp +
                 '}';
     }
 }
