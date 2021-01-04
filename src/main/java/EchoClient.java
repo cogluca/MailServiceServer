@@ -71,9 +71,14 @@ public class EchoClient {
                         break;
 
                     case "READ INBOX":
+
                         outputStream = new ObjectOutputStream(socket.getOutputStream());
+                        System.out.println("Provo a leggere");
 
                         outputStream.writeUTF("READ INBOX");
+                        outputStream.flush();
+
+                        outputStream.writeUTF(sessID);
                         outputStream.flush();
 
                         inputStream = new ObjectInputStream(socket.getInputStream());

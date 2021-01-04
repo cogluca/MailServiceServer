@@ -11,6 +11,7 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.SocketException;
+import java.security.MessageDigest;
 import java.util.List;
 
 /**
@@ -58,12 +59,18 @@ class ServerThread implements Runnable {
     }
 
     public void run() {
+        System.out.println("Entro in questo thread");
 
         ObjectInputStream inStream = null;
         ObjectOutputStream outStream = null;
         try {
-            inStream = new ObjectInputStream(incoming.getInputStream());
+            System.out.println("Deadlock?");
             outStream = new ObjectOutputStream(incoming.getOutputStream());
+            System.out.println("1NoDEADLOCK?");
+
+            inStream = new ObjectInputStream(incoming.getInputStream());
+            System.out.println("2NoDEADLOCK?");
+
             String command = inStream.readUTF();
             System.out.println("command: " + command);
             String sessID = inStream.readUTF();
@@ -75,7 +82,7 @@ class ServerThread implements Runnable {
                     Platform.runLater(() -> serverModel.addLog("Attempt to login from " + user.getUsername()));
                     String result = "";
                     if(login(user)) {
-                        result = "Login succesfully";
+                        result = "Login successfully";
                         serverModel.createSession(sessID, user);
                         serverModel.addUser(user.getUsername());
                     }
@@ -134,7 +141,7 @@ class ServerThread implements Runnable {
                         return;
                     }
                     System.out.println("Invio l'inbox");
-                    Platform.runLater(() -> serverModel.addLog("Invio l'inbox di XXX"));
+                    Platform.runLater(() -> serverModel.addLog("Invio l'inbox di " + loggedUser.getUsername()));
 
                     List<Mail> inboxMail = this.getMessages(loggedUser, true);
 
@@ -222,7 +229,6 @@ class ServerThread implements Runnable {
                 try {
                     if(inStream != null) inStream.close();
                     if(outStream != null) outStream.close();
-
                     incoming.close();
                 } catch (IOException e) {
                     e.printStackTrace();
