@@ -11,7 +11,6 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.SocketException;
-import java.security.MessageDigest;
 import java.util.List;
 
 /**
@@ -59,17 +58,13 @@ class ServerThread implements Runnable {
     }
 
     public void run() {
-        System.out.println("Entro in questo thread");
 
         ObjectInputStream inStream = null;
         ObjectOutputStream outStream = null;
         try {
-            System.out.println("Deadlock?");
             outStream = new ObjectOutputStream(incoming.getOutputStream());
-            System.out.println("1NoDEADLOCK?");
 
             inStream = new ObjectInputStream(incoming.getInputStream());
-            System.out.println("2NoDEADLOCK?");
 
             String command = inStream.readUTF();
             System.out.println("command: " + command);
@@ -158,7 +153,7 @@ class ServerThread implements Runnable {
                         return;
                     }
                     List<Mail> outboxMail = this.getMessages(loggedUser, false);
-                    Platform.runLater(() -> serverModel.addLog("Invio l'outbox di XXX"));
+                    Platform.runLater(() -> serverModel.addLog("Invio l'outbox di " + loggedUser.getUsername()));
 
 
                     outStream.writeObject(outboxMail);
