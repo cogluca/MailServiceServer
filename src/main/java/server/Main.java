@@ -43,12 +43,11 @@ public class Main extends Application {
         Thread t = new Thread(() -> {
             try {
                 ServerSocket s = new ServerSocket(8189);
-                //addLog("Server partito");
                 serverModel.addLog("Server partito");
                 while (true) {
                     Socket incoming = s.accept(); // si mette in attesa di una richiesta di connessione e la apre
 
-                    Runnable r = new ServerThread(this, incoming, serverModel);
+                    Runnable r = new ServerThread(incoming, serverModel);
 
                     new Thread(r).start();
                 }

@@ -4,12 +4,11 @@ import models.Mail;
 import models.User;
 
 import java.io.*;
+import java.nio.channels.FileLock;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
-// TODO: Implementare mutua esclusione
+// TODO: Error handling
 public class FileManager {
 
 
@@ -17,11 +16,6 @@ public class FileManager {
 
     private static final String INBOX_NAME = "Inbox";
     private static final String OUTBOX_NAME = "Outbox";
-
-    public static void main(String[] args) {
-
-
-    }
 
     /**
      * Send a mail from sender to receiver
@@ -69,19 +63,18 @@ public class FileManager {
         try {
 
             // Invia il messaggio nella casella degli
-            FileOutputStream fileOut = new FileOutputStream(filepath + "\\" + sender.getUsername() + "\\" + OUTBOX_NAME + "\\" + System.currentTimeMillis() + ".txt");
+            FileOutputStream fileOut = new FileOutputStream(filepath + "\\" + sender.getUsername() + "\\" + OUTBOX_NAME + "\\" + mail.getId() + ".txt");
             objectOut = new ObjectOutputStream(fileOut);
             objectOut.writeObject(mail);
             objectOut.close();
 
             for(User u : receiver) {
-                fileOut = new FileOutputStream(filepath + "\\" + u.getUsername() + "\\"  + INBOX_NAME + "\\" + System.currentTimeMillis() + ".txt");
+                fileOut = new FileOutputStream(filepath + "\\" + u.getUsername() + "\\"  + INBOX_NAME + "\\" + mail.getId() + ".txt");
                 objectOut = new ObjectOutputStream(fileOut);
                 objectOut.writeObject(mail);
                 objectOut.close();
 
             }
-
 
         } catch (Exception ex) {
             ex.printStackTrace();
@@ -90,7 +83,7 @@ public class FileManager {
     }
 
     private static synchronized List<String> getNameMail(String username) {
-        List<String> textFiles = new ArrayList<String>();
+        List<String> textFiles = new ArrayList<>();
         File dir = new File(filepath +"\\" + username + "\\" +  INBOX_NAME );
         if(dir.listFiles() == null) return textFiles;
         for (File file : dir.listFiles()) {
@@ -101,9 +94,22 @@ public class FileManager {
         return textFiles;
     }
 
-    /*
-    * Se sta scrivendo, teoricamente dovresti aspettare per leggere!!!
-    */
+    public static int getNumberInbox(String username) {
+        return getNameMail(username).size();
+    }
+
+    private static synchronized List<String> getNameMailOutbox(String username) {
+        List<String> textFiles = new ArrayList<String>();
+        File dir = new File(filepath +"\\" + username + "\\" +  OUTBOX_NAME );
+        if(dir.listFiles() == null) return textFiles;
+        for (File file : dir.listFiles()) {
+            if (file.getName().endsWith((".txt"))) {
+                textFiles.add(file.getName());
+            }
+        }
+        return textFiles;
+    }
+
     public static synchronized List<Mail> readInbox(String username) {
         List<Mail> retList = new ArrayList<>();
         List<String> mails = getNameMail(username);
@@ -115,7 +121,6 @@ public class FileManager {
         for (String mailPath : mails) {
             try {
                 String m = filepath + "\\" + username + "\\" + INBOX_NAME + "\\" + mailPath;
-                System.out.println(m);
                 FileInputStream fileOut = new FileInputStream(m);
                 objectOut = new ObjectInputStream(fileOut);
                 o = (Mail)objectOut.readObject();
@@ -133,7 +138,7 @@ public class FileManager {
     public static synchronized List<Mail> readOutbox (String username) {
 
         List<Mail> retOutboxList = new ArrayList<>();
-        List<String> mails = getNameMail(username);
+        List<String> mails = getNameMailOutbox(username);
 
         FileInputStream fetchStream = null;
         ObjectInputStream fetchFile = null;
@@ -167,17 +172,20 @@ public class FileManager {
         return retOutboxList;
     }
 
-    public static synchronized int deleteMessage (String mailId, String user) {
+    // Aggiungo l'user per capire chi sta cercando di eliminare la mail, così posso identificare il client dal quale
+    // cancellare il messaggio
+    public static synchronized int deleteMessage (User user, Mail deleteMessage) {
         try {
-            File toDelete = new File(filepath + "\\" + user + "\\" + mailId);
+            String path = user.getUsername().equals(deleteMessage.getSender().getUsername())? OUTBOX_NAME : INBOX_NAME;
+            File toDelete = new File(filepath + "\\" + user.getUsername() + "\\" + path +"\\" + deleteMessage.getId() + ".txt");
             toDelete.delete();
-            System.out.println("Successfully deleted file");
+            System.out.println("Successfully deleted file. Path " + toDelete);
         } catch (NullPointerException e) {
             System.out.println("Unsuccessfully deleted file ");
             System.out.println(e.getMessage());
             return -1;
         }
-        return 1;
+        return 0;
     }
 
     public static synchronized boolean userExists (User user) {

@@ -7,8 +7,7 @@ import java.util.List;
 // Model
 public class Mail implements Serializable {
 
-    private int id;
-    private Timestamp timestamp;
+    private long id;
 
     private User sender;
     private List<User> receiver;
@@ -17,16 +16,20 @@ public class Mail implements Serializable {
     private String message;
 
 
-    public Mail() {}
-    public Mail(String message) {this.message = message;}
-
-
-    public Mail(User sender, List<User> receiver, String object, String message, Timestamp timestamp) {
+    public Mail(long id, User sender, List<User> receiver, String object, String message) {
+        this.id = id;
         this.sender = sender;
         this.receiver = receiver;
         this.object = object;
         this.message = message;
-        this.timestamp = timestamp;
+    }
+
+    public long getId() {
+        return id;
+    }
+
+    public void setId(long id) {
+        this.id = id;
     }
 
     public User getSender() {
@@ -68,7 +71,6 @@ public class Mail implements Serializable {
                 ", receiver=" + receiver +
                 ", object='" + object + '\'' +
                 ", message='" + message + '\'' +
-                ", timestamp=" + timestamp +
                 '}';
     }
 }

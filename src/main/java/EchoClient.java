@@ -29,6 +29,7 @@ public class EchoClient {
 
                 switch (args[0]) {
                     case "LOGIN":
+
                         outputStream = new ObjectOutputStream(socket.getOutputStream());
                         outputStream.writeUTF("LOGIN");
                         outputStream.flush();
@@ -36,8 +37,7 @@ public class EchoClient {
                         outputStream.writeUTF(sessID);
                         outputStream.flush();
 
-                        outputStream.writeObject(new User("alessio.vannella@mail.com"));
-                        //outputStream.writeUTF("alessio.vannella@mail.com");
+                        outputStream.writeObject(new User("luca.cognigni"));
                         outputStream.flush();
 
                         inputStream = new ObjectInputStream(socket.getInputStream());
@@ -54,13 +54,12 @@ public class EchoClient {
                         outputStream.writeUTF(sessID);
                         outputStream.flush();
 
-                        User sender = new User("luca.cognigni@mail.com");
+                        User sender = new User("alessio.vannella");
                         List<User> receiver = new ArrayList<>();
-                        receiver.add(new User("alessio.vannella@mail.com"));
+                        receiver.add(new User("luca.cognigni"));
 
-                        Mail m = new Mail(sender, receiver,
-                                "prova ad inviare un messaggio dal client", "eh, ciao",
-                                null);
+                        Mail m = new Mail(System.currentTimeMillis(), sender, receiver,
+                                "Questo è una mail", "Test oggetto");
 
                         outputStream.writeObject(m);
                         outputStream.flush();

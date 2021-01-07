@@ -19,8 +19,6 @@ import java.util.List;
 class ServerThread implements Runnable {
 
     private Socket incoming;
-    private Main main;
-
 
     private ServerModel serverModel;
 
@@ -29,16 +27,11 @@ class ServerThread implements Runnable {
      *
      * @param in the incoming socket
      */
-    public ServerThread(Main m, Socket in, ServerModel model) {
-        main = m;
+    public ServerThread(Socket in, ServerModel model) {
         incoming = in;
         this.serverModel = model;
     }
 
-    private int sendMessage(Mail message) {
-        return FileManager.sendMail(message);
-
-    }
 
     private List<Mail> getMessages(User user, boolean type) {
         if (type)
@@ -48,21 +41,16 @@ class ServerThread implements Runnable {
 
     }
 
-    private int deleteMessage(Mail message) {
-        // TODO: Add id value to Mail
-        return FileManager.deleteMessage("as", message.getSender().getUsername());
-    }
-
     private boolean login(User user) {
         return FileManager.userExists(user);
     }
 
     public void run() {
-
         ObjectInputStream inStream = null;
         ObjectOutputStream outStream = null;
         try {
             outStream = new ObjectOutputStream(incoming.getOutputStream());
+            outStream.flush();
 
             inStream = new ObjectInputStream(incoming.getInputStream());
 
@@ -78,8 +66,10 @@ class ServerThread implements Runnable {
                     String result = "";
                     if(login(user)) {
                         result = "Login successfully";
-                        serverModel.createSession(sessID, user);
-                        serverModel.addUser(user.getUsername());
+                        Platform.runLater(() -> {
+                            serverModel.createSession(sessID, user);
+                            serverModel.addUser(user.getUsername());
+                        });
                     }
                     else {
                         result = ("User does not exists");
@@ -106,7 +96,7 @@ class ServerThread implements Runnable {
                     Mail getMail = (Mail) inStream.readObject();
                     Platform.runLater(() -> serverModel.addLog(loggedUser.getUsername() + " trying to send a mail to " + getMail.getReceiver().toString()));
 
-                    int status = sendMessage(getMail);
+                    int status = FileManager.sendMail(getMail);
                     String result;
                     switch (status) {
                         case 0:
@@ -135,7 +125,6 @@ class ServerThread implements Runnable {
                         // TODO: NOT AUTHORIZED USER. CLOSE CONNECTION THE CONNECTION
                         return;
                     }
-                    System.out.println("Invio l'inbox");
                     Platform.runLater(() -> serverModel.addLog("Invio l'inbox di " + loggedUser.getUsername()));
 
                     List<Mail> inboxMail = this.getMessages(loggedUser, true);
@@ -161,6 +150,29 @@ class ServerThread implements Runnable {
 
                     break;
                 }
+                case "SYNC": {
+
+                    User loggedUser = serverModel.retrieveUser(sessID);
+                    if(loggedUser == null) {
+                        // TODO: NOT AUTHORIZED USER. CLOSE CONNECTION THE CONNECTION
+                        return;
+                    }
+
+                    int retCount = 0;
+                    int clientCount = inStream.readInt();
+
+                    int inboxCount = FileManager.getNumberInbox(loggedUser.getUsername());
+                    if(clientCount != inboxCount)
+                        retCount = -1;
+
+                    //Platform.runLater(() -> serverModel.addLog("Richiesta di sync da parte di " +
+                    //        loggedUser.getUsername()));
+
+                    outStream.writeInt(retCount);
+                    outStream.flush();
+
+                    break;
+                }
 
                 case "DELETE": {
 
@@ -171,7 +183,8 @@ class ServerThread implements Runnable {
                     }
 
                     Mail deleteMail = (Mail) inStream.readObject();
-                    int deleteStatus = sendMessage(deleteMail);
+                    System.out.println(deleteMail);
+                    int deleteStatus = FileManager.deleteMessage(loggedUser, deleteMail);
                     String retStatus;
                     switch (deleteStatus) {
                         case 0:
@@ -190,7 +203,6 @@ class ServerThread implements Runnable {
                 }
 
                 case "LOGOUT": {
-                    System.out.println("arrivato qui");
                     User loggedUser = serverModel.retrieveUser(sessID);
                     if(loggedUser == null) {
                         // TODO: NOT AUTHORIZED USER. CLOSE CONNECTION THE CONNECTION
