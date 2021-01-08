@@ -40,10 +40,10 @@ public class ServerGUIController implements Initializable {
     public void closeServer(ActionEvent actionEvent) {
 
         ButtonType confirm = new ButtonType("Ok", ButtonBar.ButtonData.OK_DONE);
-        ButtonType cancel = new ButtonType("Annulla", ButtonBar.ButtonData.CANCEL_CLOSE);
+        ButtonType cancel = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
         Alert a = new Alert(Alert.AlertType.NONE, "Promote pawn to:", confirm, cancel);
-        a.setTitle("Disconnetti il server");
-        a.setHeaderText("Vuoi disconnettere il server?");
+        a.setTitle("Disconnect the server");
+        a.setHeaderText("Do you want to disconnect the server?");
         a.setResizable(true);
         a.setContentText("Disconnettendo il server, tutti i client connessi non potranno più interagire");
         a.showAndWait().ifPresent(response -> {

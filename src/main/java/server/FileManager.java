@@ -1,76 +1,78 @@
 package server;
 
 import models.Mail;
+import models.Response;
 import models.User;
 
 import java.io.*;
-import java.nio.channels.FileLock;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
-// TODO: Error handling
+// TODO: Mutua esclusione
 public class FileManager {
 
 
-    private static final String filepath= System.getProperty("user.dir") + "\\persistance\\";
+    private static final String workingDir = System.getProperty("user.dir") + File.separator + "persistance";
 
-    private static final String INBOX_NAME = "Inbox";
-    private static final String OUTBOX_NAME = "Outbox";
+    public static final String INBOX_NAME = "Inbox";
+    public static final String OUTBOX_NAME = "Outbox";
+
+    private static final String usersFile = "users.txt";
 
     /**
-     * Send a mail from sender to receiver
-     * @param mail
-     * @return integer with status code:
-     *         0: send successful
-     *         -1: Wrong sender
-     *         -2: Wrong receiver
+     * Send a mail from sender to a list of receivers
+     *
+     * @param mail mail to be sent
+     * @return Response object as:
+     * 0: send successful
+     * -1: Wrong sender
+     * -2: Wrong receiver
      */
-    public static synchronized int sendMail(Mail mail) {
+    public static synchronized Response sendMail(Mail mail) {
         ObjectOutputStream objectOut;
 
         User sender = mail.getSender();
-
         List<User> receiver = mail.getReceiver();
+        String senderPath = workingDir + File.separator + sender.getUsername() + File.separator;
 
-        File senderDir = new File(filepath + "\\" + sender.getUsername());
-        if (userExists(sender)) {
-            if(!senderDir.exists()) {
-                senderDir.mkdir();
-                new File(filepath + "\\" + sender.getUsername() + "\\" + INBOX_NAME).mkdir();
-                new File(filepath + "\\" + sender.getUsername() + "\\" + OUTBOX_NAME).mkdir();
-            }
-        }
-        else {
-            System.out.println("ERROR: WRONG SENDER");
-            return -1;
-        }
+        File senderDir = new File(senderPath);
 
+        if(!userExists(sender)) return new Response(-1, "Wrong Sender");
+        if(receiver.isEmpty()) return new Response(-1, "Receiver cannot be empty");
+
+        if (!senderDir.exists()) {
+            senderDir.mkdir();
+            new File(senderPath + INBOX_NAME).mkdir();
+            new File(senderPath + OUTBOX_NAME).mkdir();
+        }
         for (User u : receiver) {
-            File receiverDir = new File(filepath + "\\" + u.getUsername());
-            if(userExists(u)) {
-                if (!receiverDir.exists()) {
-                    receiverDir.mkdir();
-                    new File(filepath + "\\" + u.getUsername() + "\\" + INBOX_NAME).mkdir();
-                    new File(filepath + "\\" + u.getUsername() + "\\" + OUTBOX_NAME).mkdir();
-                }
-            }
-            else {
-                System.out.println("ERROR: WRONG RECEIVER");
-                return -2;
+            String receiverPath = workingDir + File.separator + File.separator + u.getUsername() + File.separator;
+            File receiverDir = new File(receiverPath);
+
+            if (!userExists(u)) return new Response(-1, "One or more receiver does not exists");
+
+            if (!receiverDir.exists()) {
+                receiverDir.mkdir();
+                new File(receiverPath + INBOX_NAME).mkdir();
+                new File(receiverPath + OUTBOX_NAME).mkdir();
             }
         }
 
         try {
 
-            // Invia il messaggio nella casella degli
-            FileOutputStream fileOut = new FileOutputStream(filepath + "\\" + sender.getUsername() + "\\" + OUTBOX_NAME + "\\" + mail.getId() + ".txt");
+            FileOutputStream fileOut = new FileOutputStream(workingDir + File.separator + sender.getUsername()
+                    + File.separator + OUTBOX_NAME + File.separator + mail.getId() + ".txt");
             objectOut = new ObjectOutputStream(fileOut);
+            mail.setSent(true);
             objectOut.writeObject(mail);
             objectOut.close();
 
-            for(User u : receiver) {
-                fileOut = new FileOutputStream(filepath + "\\" + u.getUsername() + "\\"  + INBOX_NAME + "\\" + mail.getId() + ".txt");
+            for (User u : receiver) {
+                fileOut = new FileOutputStream(workingDir + File.separator + u.getUsername()
+                        + File.separator + INBOX_NAME + File.separator + mail.getId() + ".txt");
                 objectOut = new ObjectOutputStream(fileOut);
+                mail.setSent(false);
                 objectOut.writeObject(mail);
                 objectOut.close();
 
@@ -79,14 +81,23 @@ public class FileManager {
         } catch (Exception ex) {
             ex.printStackTrace();
         }
-        return 0;
+        return new Response(0, "Mail sent successfully");
     }
 
-    private static synchronized List<String> getNameMail(String username) {
+
+    /**
+     * Get the incoming or upcoming messages filename of a user
+     *
+     * @param user User owner of the messages
+     * @param type type of messages: can be INBOX_NAME or OUTBOX_NAME
+     * @return list of string (filenames) of messages
+     */
+    private static synchronized List<String> getExistingMails(User user, String type) {
+        String username = user.getUsername();
         List<String> textFiles = new ArrayList<>();
-        File dir = new File(filepath +"\\" + username + "\\" +  INBOX_NAME );
-        if(dir.listFiles() == null) return textFiles;
-        for (File file : dir.listFiles()) {
+        File dir = new File(workingDir + File.separator + username + File.separator + type);
+        if (dir.listFiles() == null) return textFiles;
+        for (File file : Objects.requireNonNull(dir.listFiles())) {
             if (file.getName().endsWith((".txt"))) {
                 textFiles.add(file.getName());
             }
@@ -94,112 +105,100 @@ public class FileManager {
         return textFiles;
     }
 
-    public static int getNumberInbox(String username) {
-        return getNameMail(username).size();
+    /**
+     * Get the number of inbox elements. useful for syncing logged clients
+     *
+     * @param user user owner of the messages
+     * @return number of inbox elements
+     */
+    public static int getNumberInbox(User user) {
+        return getExistingMails(user, INBOX_NAME).size();
     }
 
-    private static synchronized List<String> getNameMailOutbox(String username) {
-        List<String> textFiles = new ArrayList<String>();
-        File dir = new File(filepath +"\\" + username + "\\" +  OUTBOX_NAME );
-        if(dir.listFiles() == null) return textFiles;
-        for (File file : dir.listFiles()) {
-            if (file.getName().endsWith((".txt"))) {
-                textFiles.add(file.getName());
-            }
-        }
-        return textFiles;
-    }
-
-    public static synchronized List<Mail> readInbox(String username) {
+    /**
+     * Get the messages of a user (incoming or upcoming)
+     *
+     * @param user user owner of the messages
+     * @param type type of messages: can be INBOX_NAME or OUTBOX_NAME
+     * @return a list of mails according type value (incoming or upcoming list)
+     */
+    public static synchronized List<Mail> readMail(User user, String type) {
+        String username = user.getUsername();
+        List<String> mails = getExistingMails(user, type);
         List<Mail> retList = new ArrayList<>();
-        List<String> mails = getNameMail(username);
-        System.out.println(mails.size());
 
         Mail o;
-        ObjectInputStream objectOut;
+        ObjectInputStream objectOut = null;
 
         for (String mailPath : mails) {
+            String m = workingDir + File.separator + username + File.separator + type + File.separator + mailPath;
             try {
-                String m = filepath + "\\" + username + "\\" + INBOX_NAME + "\\" + mailPath;
-                FileInputStream fileOut = new FileInputStream(m);
-                objectOut = new ObjectInputStream(fileOut);
-                o = (Mail)objectOut.readObject();
+                objectOut = new ObjectInputStream(new FileInputStream(m));
+                o = (Mail) objectOut.readObject();
                 retList.add(o);
-                objectOut.close();
 
-            } catch (Exception ex) {
-                ex.printStackTrace();
+            } catch (IOException | ClassNotFoundException e) {
+                e.printStackTrace();
+            } finally {
+                if (objectOut != null) {
+                    try {
+                        objectOut.close();
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                    }
+                }
             }
         }
-
         return retList;
     }
 
-    public static synchronized List<Mail> readOutbox (String username) {
 
-        List<Mail> retOutboxList = new ArrayList<>();
-        List<String> mails = getNameMailOutbox(username);
+    /**
+     * @param user          user owner of the message
+     * @param deleteMessage message to be deleted
+     * @return Response object as:
+     * 0: delete successfully
+     * -1: generic error
+     */
+    public static synchronized Response deleteMessage(User user, Mail deleteMessage) {
+        Response r = new Response(0, "Message deleted successfully");
 
-        FileInputStream fetchStream = null;
-        ObjectInputStream fetchFile = null;
+        String path = deleteMessage.isSent() ? OUTBOX_NAME : INBOX_NAME;
 
-        Mail cachedMail;
-
-        for (String outmail : mails) {
-            try {
-                String path = filepath + "\\" + username +"\\" + OUTBOX_NAME + "\\" + outmail;
-                fetchStream = new FileInputStream(path);
-                fetchFile = new ObjectInputStream(fetchStream);
-                cachedMail = (Mail) fetchFile.readObject();
-                retOutboxList.add(cachedMail);
-
-            }
-            catch(IOException | ClassNotFoundException e) {
-                System.out.println(e.getMessage());
-            }
-            finally {
-                try {
-                    if (fetchFile != null)
-                        fetchFile.close();
-                    if (fetchStream != null)
-                        fetchStream.close();
-                }
-                catch (IOException ex){
-                    System.out.println(ex.getMessage());
-                }
-            }
-        }
-        return retOutboxList;
-    }
-
-    // Aggiungo l'user per capire chi sta cercando di eliminare la mail, così posso identificare il client dal quale
-    // cancellare il messaggio
-    public static synchronized int deleteMessage (User user, Mail deleteMessage) {
         try {
-            String path = user.getUsername().equals(deleteMessage.getSender().getUsername())? OUTBOX_NAME : INBOX_NAME;
-            File toDelete = new File(filepath + "\\" + user.getUsername() + "\\" + path +"\\" + deleteMessage.getId() + ".txt");
-            toDelete.delete();
-            System.out.println("Successfully deleted file. Path " + toDelete);
+            File toDelete = new File(workingDir + File.separator + user.getUsername() +
+                    File.separator + path + File.separator + deleteMessage.getId() + ".txt");
+            if (!toDelete.delete()) {
+
+                r.setResponseCode(-1);
+                r.setResponseText("Error deleting the file");
+            }
         } catch (NullPointerException e) {
-            System.out.println("Unsuccessfully deleted file ");
-            System.out.println(e.getMessage());
-            return -1;
+            e.printStackTrace();
+            r.setResponseCode(-1);
+            r.setResponseText("Error deleting the file");
         }
-        return 0;
+        return r;
     }
 
-    public static synchronized boolean userExists (User user) {
-        File userList = new File(filepath + "\\users.txt");
+    /**
+     * Check if an user exists
+     *
+     * @param user user to be checked
+     * @return true if user exists, false otherwise
+     */
+    public static synchronized boolean userExists(User user) {
+        File userList = new File(workingDir + File.separator + usersFile);
+
         try (BufferedReader br = new BufferedReader(new FileReader(userList))) {
             String line;
             while ((line = br.readLine()) != null) {
-                if(user.getUsername().equals(line))
+                if (user.getUsername().equals(line))
                     return true;
             }
         } catch (IOException e) {
             e.printStackTrace();
         }
-
 
         return false;
     }

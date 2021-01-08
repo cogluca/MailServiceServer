@@ -14,7 +14,15 @@ public class Mail implements Serializable {
 
     private String object;
     private String message;
+    private boolean sent;
 
+    public boolean isSent() {
+        return sent;
+    }
+
+    public void setSent(boolean sent) {
+        this.sent = sent;
+    }
 
     public Mail(long id, User sender, List<User> receiver, String object, String message) {
         this.id = id;

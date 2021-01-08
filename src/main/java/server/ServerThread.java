@@ -1,8 +1,8 @@
 package server;
 
-
 import javafx.application.Platform;
 import models.Mail;
+import models.Response;
 import models.ServerModel;
 import models.User;
 
@@ -23,28 +23,29 @@ class ServerThread implements Runnable {
     private ServerModel serverModel;
 
     /**
-     * Constructs a handler.
-     *
-     * @param in the incoming socket
+     * ServerThread constructor
      */
     public ServerThread(Socket in, ServerModel model) {
         incoming = in;
         this.serverModel = model;
     }
 
-
-    private List<Mail> getMessages(User user, boolean type) {
-        if (type)
-            return FileManager.readInbox(user.getUsername());
-        else
-            return FileManager.readOutbox(user.getUsername());
-
+    /**
+     * Utility method. Raise a "not authorized user" error in case some user
+     * tries to exploit the authentication. Basically, if doesn't exists the pair
+     * <sess_id, user> given on authentication in the Map server model, raise this
+     * error.
+     * Also this mechanism will block not logged users
+     * @return a response object containing the error
+     */
+    private Response handleNotAuthorized() {
+        return new Response(-5, "FATAL ERROR: Not authorized user");
     }
 
-    private boolean login(User user) {
-        return FileManager.userExists(user);
-    }
-
+    /**
+     * Runnable run thread.
+     * Handle server functioning. Get, dispatch and servers a command from a given client.
+     */
     public void run() {
         ObjectInputStream inStream = null;
         ObjectOutputStream outStream = null;
@@ -57,24 +58,30 @@ class ServerThread implements Runnable {
             String command = inStream.readUTF();
             System.out.println("command: " + command);
             String sessID = inStream.readUTF();
+            Response response;
 
             switch (command) {
                 case "LOGIN": {
 
-                    User user = (User)inStream.readObject();
+                    User user = (User) inStream.readObject();
                     Platform.runLater(() -> serverModel.addLog("Attempt to login from " + user.getUsername()));
                     String result = "";
-                    if(login(user)) {
+
+                    if (FileManager.userExists(user)) {
+
                         result = "Login successfully";
+                        response = new Response(0, "Login successfully");
                         Platform.runLater(() -> {
                             serverModel.createSession(sessID, user);
                             serverModel.addUser(user.getUsername());
                         });
-                    }
-                    else {
+                    } else {
+                        response = new Response(-1, "User does not exists");
                         result = ("User does not exists");
                     }
 
+                    // SCOMMENTA QUESTO E TOGLI IL WRITE UTF
+                    //outStream.writeObject(response);
                     outStream.writeUTF(result);
                     outStream.flush();
 
@@ -87,8 +94,8 @@ class ServerThread implements Runnable {
                 case "SEND": {
 
                     User loggedUser = serverModel.retrieveUser(sessID);
-                    if(loggedUser == null) {
-                        // TODO: NOT AUTHORIZED USER. CLOSE CONNECTION THE CONNECTION
+                    if (loggedUser == null) {
+                        outStream.writeObject(handleNotAuthorized());
                         return;
                     }
 
@@ -96,9 +103,9 @@ class ServerThread implements Runnable {
                     Mail getMail = (Mail) inStream.readObject();
                     Platform.runLater(() -> serverModel.addLog(loggedUser.getUsername() + " trying to send a mail to " + getMail.getReceiver().toString()));
 
-                    int status = FileManager.sendMail(getMail);
+                    response = FileManager.sendMail(getMail);
                     String result;
-                    switch (status) {
+                    switch (response.getResponseCode()) {
                         case 0:
                             result = "Send successful";
                             break;
@@ -112,7 +119,11 @@ class ServerThread implements Runnable {
                             result = "An error occurred sending the mail";
                             break;
                     }
+
                     Platform.runLater(() -> serverModel.addLog(result));
+
+                    // SCOMMENTA QUESTO E TOGLI IL WRITE UTF
+                    //outStream.writeObject(response);
                     outStream.writeUTF(result);
                     outStream.flush();
 
@@ -122,13 +133,12 @@ class ServerThread implements Runnable {
 
                     User loggedUser = serverModel.retrieveUser(sessID);
                     if(loggedUser == null) {
-                        // TODO: NOT AUTHORIZED USER. CLOSE CONNECTION THE CONNECTION
+                        outStream.writeObject(handleNotAuthorized());
                         return;
                     }
                     Platform.runLater(() -> serverModel.addLog("Invio l'inbox di " + loggedUser.getUsername()));
 
-                    List<Mail> inboxMail = this.getMessages(loggedUser, true);
-
+                    List<Mail> inboxMail = FileManager.readMail(loggedUser, FileManager.INBOX_NAME);
                     outStream.writeObject(inboxMail);
                     outStream.flush();
 
@@ -138,10 +148,11 @@ class ServerThread implements Runnable {
 
                     User loggedUser = serverModel.retrieveUser(sessID);
                     if(loggedUser == null) {
-                        // TODO: NOT AUTHORIZED USER. CLOSE CONNECTION THE CONNECTION
+                        outStream.writeObject(handleNotAuthorized());
                         return;
                     }
-                    List<Mail> outboxMail = this.getMessages(loggedUser, false);
+                    List<Mail> outboxMail = FileManager.readMail(loggedUser, FileManager.OUTBOX_NAME);
+
                     Platform.runLater(() -> serverModel.addLog("Invio l'outbox di " + loggedUser.getUsername()));
 
 
@@ -153,16 +164,16 @@ class ServerThread implements Runnable {
                 case "SYNC": {
 
                     User loggedUser = serverModel.retrieveUser(sessID);
-                    if(loggedUser == null) {
-                        // TODO: NOT AUTHORIZED USER. CLOSE CONNECTION THE CONNECTION
+                    if (loggedUser == null) {
+                        outStream.writeObject(handleNotAuthorized());
                         return;
                     }
 
                     int retCount = 0;
                     int clientCount = inStream.readInt();
 
-                    int inboxCount = FileManager.getNumberInbox(loggedUser.getUsername());
-                    if(clientCount != inboxCount)
+                    int inboxCount = FileManager.getNumberInbox(loggedUser);
+                    if (clientCount != inboxCount)
                         retCount = -1;
 
                     //Platform.runLater(() -> serverModel.addLog("Richiesta di sync da parte di " +
@@ -177,16 +188,15 @@ class ServerThread implements Runnable {
                 case "DELETE": {
 
                     User loggedUser = serverModel.retrieveUser(sessID);
-                    if(loggedUser == null) {
-                        // TODO: NOT AUTHORIZED USER. CLOSE CONNECTION THE CONNECTION
+                    if (loggedUser == null) {
+                        outStream.writeObject(handleNotAuthorized());
                         return;
                     }
 
                     Mail deleteMail = (Mail) inStream.readObject();
-                    System.out.println(deleteMail);
-                    int deleteStatus = FileManager.deleteMessage(loggedUser, deleteMail);
+                    response = FileManager.deleteMessage(loggedUser, deleteMail);
                     String retStatus;
-                    switch (deleteStatus) {
+                    switch (response.getResponseCode()) {
                         case 0:
                             retStatus = "Delete successful";
                             break;
@@ -196,7 +206,8 @@ class ServerThread implements Runnable {
                     }
                     Platform.runLater(() -> serverModel.addLog(retStatus));
 
-
+                    // SCOMMENTA QUESTO E TOGLI IL WRITE UTF
+                    //outStream.writeObject(response);
                     outStream.writeUTF(retStatus);
                     outStream.flush();
                     break;
@@ -204,16 +215,16 @@ class ServerThread implements Runnable {
 
                 case "LOGOUT": {
                     User loggedUser = serverModel.retrieveUser(sessID);
-                    if(loggedUser == null) {
-                        // TODO: NOT AUTHORIZED USER. CLOSE CONNECTION THE CONNECTION
+                    if (loggedUser == null) {
+                        outStream.writeObject(handleNotAuthorized());
                         return;
                     }
 
                     Platform.runLater(() -> {
-                        serverModel.addLog(loggedUser.getUsername() + " disconnected from server");
-                        serverModel.removeUser(loggedUser.getUsername());
-                        serverModel.destroySession(sessID);
-                    }
+                                serverModel.addLog(loggedUser.getUsername() + " disconnected from server");
+                                serverModel.removeUser(loggedUser.getUsername());
+                                serverModel.destroySession(sessID);
+                            }
 
                     );
 
@@ -222,8 +233,8 @@ class ServerThread implements Runnable {
                 }
 
                 default:
-                    // TODO: Handle better this error
                     System.out.println("Wrong command");
+                    response = new Response(-1, "Wrong command");
                     break;
             }
 
@@ -234,8 +245,8 @@ class ServerThread implements Runnable {
         } finally {
             if (incoming != null)
                 try {
-                    if(inStream != null) inStream.close();
-                    if(outStream != null) outStream.close();
+                    if (inStream != null) inStream.close();
+                    if (outStream != null) outStream.close();
                     incoming.close();
                 } catch (IOException e) {
                     e.printStackTrace();
