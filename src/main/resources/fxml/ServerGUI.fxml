@@ -28,13 +28,16 @@
                             </top>
                             <center>
                                 <ListView fx:id="accountView" prefHeight="200.0" prefWidth="200.0" BorderPane.alignment="CENTER">
-                                    <contextMenu>
+                                   <!--
+                                   TODO: Decidere se implementare
+                                   <contextMenu>
                                         <ContextMenu>
                                             <items>
                                                 <MenuItem mnemonicParsing="false" text="Disconnect" />
                                             </items>
                                         </ContextMenu>
                                     </contextMenu>
+                                    -->
                                 </ListView>
                             </center>
                         </BorderPane>

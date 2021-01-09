@@ -81,4 +81,14 @@ public class Mail implements Serializable {
                 ", message='" + message + '\'' +
                 '}';
     }
+
+    public String listAddresses() {
+        String addresses = "";
+        for(User receivingAddress: receiver) {
+            addresses += receivingAddress.getUsername() + "@Parallel.com; ";
+        }
+        return addresses;
+    }
+
+
 }
