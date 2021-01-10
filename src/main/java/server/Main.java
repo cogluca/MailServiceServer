@@ -16,7 +16,7 @@ import java.net.Socket;
 import java.rmi.server.ServerCloneException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
-
+// TODO IMPORTANT: Implements pool thread
 public class Main extends Application {
 
     private ServerModel serverModel;

@@ -32,14 +32,6 @@ public class Response implements Serializable {
         this.responseText = responseText;
     }
 
-    /**
-     * Use this only if you should visualize an error.
-     * In case you want only show a response from server, use
-     * get
-     */
-    public String getError() {
-        return "Error " + getResponseCode() + " occurred: " + getResponseText();
-    }
 
     @Override
     public String toString() {

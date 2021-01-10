@@ -112,7 +112,7 @@ public class FileManager {
      * @param user user owner of the messages
      * @return number of inbox elements
      */
-    public static int getNumberInbox(User user) {
+    public static synchronized int getNumberInbox(User user) {
         return getExistingMails(user, INBOX_NAME).size();
     }
 
