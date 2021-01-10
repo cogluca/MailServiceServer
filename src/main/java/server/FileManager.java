@@ -33,6 +33,7 @@ public class FileManager {
         ObjectOutputStream objectOut;
 
         User sender = mail.getSender();
+        System.out.println(sender.getUsername());
         List<User> receiver = mail.getReceiver();
         String senderPath = workingDir + File.separator + sender.getUsername() + File.separator;
 

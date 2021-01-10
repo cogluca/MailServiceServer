@@ -81,8 +81,8 @@ class ServerThread implements Runnable {
                     }
 
                     // SCOMMENTA QUESTO E TOGLI IL WRITE UTF
-                    //outStream.writeObject(response);
-                    outStream.writeUTF(result);
+                    outStream.writeObject(response);
+                    //outStream.writeUTF(result);
                     outStream.flush();
 
                     String finalResult = result;
@@ -103,6 +103,7 @@ class ServerThread implements Runnable {
                     Mail getMail = (Mail) inStream.readObject();
                     Platform.runLater(() -> serverModel.addLog(loggedUser.getUsername() + " trying to send a mail to " + getMail.getReceiver().toString()));
 
+                    System.out.println(getMail.getReceiver().toString());
                     response = FileManager.sendMail(getMail);
                     String result;
                     switch (response.getResponseCode()) {
@@ -121,10 +122,10 @@ class ServerThread implements Runnable {
                     }
 
                     Platform.runLater(() -> serverModel.addLog(result));
-
+                    System.out.println(response.getResponseText());
                     // SCOMMENTA QUESTO E TOGLI IL WRITE UTF
-                    //outStream.writeObject(response);
-                    outStream.writeUTF(result);
+                    outStream.writeObject(response);
+                    //outStream.writeUTF(result);
                     outStream.flush();
 
                     break;
@@ -195,20 +196,20 @@ class ServerThread implements Runnable {
 
                     Mail deleteMail = (Mail) inStream.readObject();
                     response = FileManager.deleteMessage(loggedUser, deleteMail);
-                    String retStatus;
+                    String retStatus = "";
                     switch (response.getResponseCode()) {
                         case 0:
-                            retStatus = "Delete successful";
+                            response.setResponseText("Delete successful");
                             break;
                         default:
-                            retStatus = "Not existing mail";
+                            response.setResponseText("Non existent mail");
                             break;
                     }
                     Platform.runLater(() -> serverModel.addLog(retStatus));
 
                     // SCOMMENTA QUESTO E TOGLI IL WRITE UTF
-                    //outStream.writeObject(response);
-                    outStream.writeUTF(retStatus);
+                    outStream.writeObject(response);
+                    //outStream.writeUTF(retStatus);
                     outStream.flush();
                     break;
                 }
