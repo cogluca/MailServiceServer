@@ -1,15 +1,22 @@
 package server;
 
+import javafx.beans.property.StringProperty;
 import models.Mail;
 import models.Response;
 import models.User;
 
+import javax.crypto.SealedObject;
 import java.io.*;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Semaphore;
 
-// TODO: Mutua esclusione
 public class FileManager {
 
 
@@ -20,6 +27,26 @@ public class FileManager {
 
     private static final String usersFile = "users.txt";
 
+
+    public static FileChannel getLockExclusive(String path) throws IOException {
+        return FileChannel.open(Paths.get(path), StandardOpenOption.READ, StandardOpenOption.WRITE);
+    }
+
+    public static FileChannel getLockShared(String path) throws IOException {
+        return FileChannel.open(Paths.get(path), StandardOpenOption.READ);
+    }
+
+
+    private static boolean createUserFolder(String basePath) throws IOException {
+        boolean ret = new File(basePath).mkdir();
+        ret = ret && new File(basePath + INBOX_NAME).mkdir();
+        ret = ret && new File(basePath + INBOX_NAME + File.separator + "lock").createNewFile();
+        ret = ret && new File(basePath + OUTBOX_NAME).mkdir();
+        ret = ret && new File(basePath + OUTBOX_NAME + File.separator + "lock").createNewFile();
+
+        return ret;
+    }
+
     /**
      * Send a mail from sender to a list of receivers
      *
@@ -29,59 +56,58 @@ public class FileManager {
      * -1: Wrong sender
      * -2: Wrong receiver
      */
-    public static synchronized Response sendMail(Mail mail) {
-        ObjectOutputStream objectOut;
+    public static synchronized Response sendMail(Mail mail) throws IOException {
 
+        ObjectOutputStream objectOut;
         User sender = mail.getSender();
-        System.out.println(sender.getUsername());
         List<User> receiver = mail.getReceiver();
         String senderPath = workingDir + File.separator + sender.getUsername() + File.separator;
 
-        File senderDir = new File(senderPath);
+        if (!userExists(sender)) return new Response(-1, "Wrong Sender");
+        if (receiver.isEmpty()) return new Response(-1, "Receiver cannot be empty");
 
-        if(!userExists(sender)) return new Response(-1, "Wrong Sender");
-        if(receiver.isEmpty()) return new Response(-1, "Receiver cannot be empty");
+        if (Files.notExists(Paths.get(senderPath))) createUserFolder(senderPath);
 
-        if (!senderDir.exists()) {
-            senderDir.mkdir();
-            new File(senderPath + INBOX_NAME).mkdir();
-            new File(senderPath + OUTBOX_NAME).mkdir();
-        }
         for (User u : receiver) {
-            String receiverPath = workingDir + File.separator + File.separator + u.getUsername() + File.separator;
+            String receiverPath = workingDir + File.separator + u.getUsername() + File.separator;
             File receiverDir = new File(receiverPath);
 
             if (!userExists(u)) return new Response(-1, "One or more receiver does not exists");
 
-            if (!receiverDir.exists()) {
-                receiverDir.mkdir();
-                new File(receiverPath + INBOX_NAME).mkdir();
-                new File(receiverPath + OUTBOX_NAME).mkdir();
-            }
+            if (!receiverDir.exists()) createUserFolder(receiverPath);
+
         }
 
-        try {
+        FileChannel fileLock = getLockShared(senderPath +
+                OUTBOX_NAME + File.separator + "lock");
+        fileLock.lock(0, Long.MAX_VALUE, true);
 
-            FileOutputStream fileOut = new FileOutputStream(workingDir + File.separator + sender.getUsername()
-                    + File.separator + OUTBOX_NAME + File.separator + mail.getId() + ".txt");
+        FileOutputStream fileOut = new FileOutputStream(senderPath +
+                OUTBOX_NAME + File.separator + mail.getId() + ".txt");
+        objectOut = new ObjectOutputStream(fileOut);
+        mail.setSent(true);
+        objectOut.writeObject(mail);
+        objectOut.close();
+
+        fileLock.close();
+
+
+        for (User u : receiver) {
+            String receiverPath = workingDir + File.separator + u.getUsername() + File.separator;
+
+            fileLock = getLockShared(receiverPath + INBOX_NAME + File.separator + "lock");
+            fileLock.lock(0, Long.MAX_VALUE, true);
+
+            fileOut = new FileOutputStream(receiverPath + INBOX_NAME + File.separator + mail.getId() + ".txt");
             objectOut = new ObjectOutputStream(fileOut);
-            mail.setSent(true);
+            mail.setSent(false);
             objectOut.writeObject(mail);
             objectOut.close();
 
-            for (User u : receiver) {
-                fileOut = new FileOutputStream(workingDir + File.separator + u.getUsername()
-                        + File.separator + INBOX_NAME + File.separator + mail.getId() + ".txt");
-                objectOut = new ObjectOutputStream(fileOut);
-                mail.setSent(false);
-                objectOut.writeObject(mail);
-                objectOut.close();
+            fileLock.close();
 
-            }
-
-        } catch (Exception ex) {
-            ex.printStackTrace();
         }
+
         return new Response(0, "Mail sent successfully");
     }
 
@@ -93,16 +119,30 @@ public class FileManager {
      * @param type type of messages: can be INBOX_NAME or OUTBOX_NAME
      * @return list of string (filenames) of messages
      */
-    private static synchronized List<String> getExistingMails(User user, String type) {
-        String username = user.getUsername();
+    private static synchronized List<String> getExistingMails(User user, String type) throws IOException {
+
         List<String> textFiles = new ArrayList<>();
-        File dir = new File(workingDir + File.separator + username + File.separator + type);
-        if (dir.listFiles() == null) return textFiles;
+        String userPath = workingDir + File.separator + user.getUsername() + File.separator;
+
+        if (Files.notExists(Paths.get(userPath))) {
+            createUserFolder(userPath);
+            return textFiles;
+        }
+
+
+        FileChannel fileLock = getLockExclusive(userPath + type + File.separator + "lock");
+        fileLock.lock();
+
+        File dir = new File(userPath + type);
+
         for (File file : Objects.requireNonNull(dir.listFiles())) {
             if (file.getName().endsWith((".txt"))) {
                 textFiles.add(file.getName());
             }
         }
+
+        fileLock.close();
+
         return textFiles;
     }
 
@@ -112,7 +152,7 @@ public class FileManager {
      * @param user user owner of the messages
      * @return number of inbox elements
      */
-    public static synchronized int getNumberInbox(User user) {
+    public static int getNumberInbox(User user) throws IOException {
         return getExistingMails(user, INBOX_NAME).size();
     }
 
@@ -123,33 +163,27 @@ public class FileManager {
      * @param type type of messages: can be INBOX_NAME or OUTBOX_NAME
      * @return a list of mails according type value (incoming or upcoming list)
      */
-    public static synchronized List<Mail> readMail(User user, String type) {
-        String username = user.getUsername();
+    public static synchronized List<Mail> readMail(User user, String type) throws IOException, ClassNotFoundException {
         List<String> mails = getExistingMails(user, type);
         List<Mail> retList = new ArrayList<>();
-
         Mail o;
-        ObjectInputStream objectOut = null;
+        ObjectInputStream objectOut;
 
-        for (String mailPath : mails) {
-            String m = workingDir + File.separator + username + File.separator + type + File.separator + mailPath;
-            try {
-                objectOut = new ObjectInputStream(new FileInputStream(m));
-                o = (Mail) objectOut.readObject();
-                retList.add(o);
+        String userPath = workingDir + File.separator + user.getUsername() + File.separator + type + File.separator;
 
-            } catch (IOException | ClassNotFoundException e) {
-                e.printStackTrace();
-            } finally {
-                if (objectOut != null) {
-                    try {
-                        objectOut.close();
-                    } catch (IOException ex) {
-                        ex.printStackTrace();
-                    }
-                }
-            }
+        FileChannel fileLock = getLockExclusive(userPath + "lock");
+        fileLock.lock();
+
+        for (String mail : mails) {
+
+            objectOut = new ObjectInputStream(new FileInputStream(userPath + mail));
+            o = (Mail) objectOut.readObject();
+            retList.add(o);
+            objectOut.close();
+
         }
+
+        fileLock.close();
         return retList;
     }
 
@@ -161,24 +195,33 @@ public class FileManager {
      * 0: delete successfully
      * -1: generic error
      */
-    public static synchronized Response deleteMessage(User user, Mail deleteMessage) {
+    public static synchronized Response deleteMessage(User user, Mail deleteMessage) throws IOException {
+
         Response r = new Response(0, "Message deleted successfully");
 
         String path = deleteMessage.isSent() ? OUTBOX_NAME : INBOX_NAME;
+        String userPath = workingDir + File.separator + user.getUsername() + File.separator;
 
-        try {
-            File toDelete = new File(workingDir + File.separator + user.getUsername() +
-                    File.separator + path + File.separator + deleteMessage.getId() + ".txt");
-            if (!toDelete.delete()) {
+        if (Files.notExists(Paths.get(userPath))) {
+            createUserFolder(userPath);
+            return new Response(-1, "Message does not exists");
+        }
 
-                r.setResponseCode(-1);
-                r.setResponseText("Error deleting the file");
-            }
-        } catch (NullPointerException e) {
-            e.printStackTrace();
+        FileChannel fileLock = getLockShared(userPath + path + File.separator + "lock");
+        fileLock.lock(0, Long.MAX_VALUE, true);
+
+        FileChannel deleteLock = getLockExclusive(userPath + path + File.separator + deleteMessage.getId() + ".txt");
+        deleteLock.lock();
+
+        File toDelete = new File(userPath + path + File.separator + deleteMessage.getId() + ".txt");
+        if (!toDelete.delete()) {
             r.setResponseCode(-1);
             r.setResponseText("Error deleting the file");
         }
+
+        deleteLock.close();
+        fileLock.close();
+
         return r;
     }
 
@@ -188,17 +231,14 @@ public class FileManager {
      * @param user user to be checked
      * @return true if user exists, false otherwise
      */
-    public static synchronized boolean userExists(User user) {
+    public static synchronized boolean userExists(User user) throws IOException {
         File userList = new File(workingDir + File.separator + usersFile);
+        String line;
 
-        try (BufferedReader br = new BufferedReader(new FileReader(userList))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-                if (user.getUsername().equals(line))
-                    return true;
-            }
-        } catch (IOException e) {
-            e.printStackTrace();
+        BufferedReader br = new BufferedReader(new FileReader(userList));
+        while ((line = br.readLine()) != null) {
+            if (user.getUsername().equals(line))
+                return true;
         }
 
         return false;

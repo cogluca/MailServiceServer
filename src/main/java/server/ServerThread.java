@@ -36,6 +36,7 @@ class ServerThread implements Runnable {
      * <sess_id, user> given on authentication in the Map server model, raise this
      * error.
      * Also this mechanism will block not logged users
+     *
      * @return a response object containing the error
      */
     private Response handleNotAuthorized() {
@@ -65,11 +66,9 @@ class ServerThread implements Runnable {
 
                     User user = (User) inStream.readObject();
                     Platform.runLater(() -> serverModel.addLog("Attempt to login from " + user.getUsername()));
-                    String result = "";
 
                     if (FileManager.userExists(user)) {
 
-                        result = "Login successfully";
                         response = new Response(0, "Login successfully");
                         Platform.runLater(() -> {
                             serverModel.createSession(sessID, user);
@@ -77,16 +76,12 @@ class ServerThread implements Runnable {
                         });
                     } else {
                         response = new Response(-1, "User does not exists");
-                        result = ("User does not exists");
                     }
 
-                    // SCOMMENTA QUESTO E TOGLI IL WRITE UTF
                     outStream.writeObject(response);
-                    //outStream.writeUTF(result);
                     outStream.flush();
-
-                    String finalResult = result;
-                    Platform.runLater(() -> serverModel.addLog(finalResult));
+                    Response finalResponse = response;
+                    Platform.runLater(() -> serverModel.addLog(finalResponse.getResponseText()));
 
                     break;
                 }
@@ -99,33 +94,15 @@ class ServerThread implements Runnable {
                         return;
                     }
 
-
                     Mail getMail = (Mail) inStream.readObject();
                     Platform.runLater(() -> serverModel.addLog(loggedUser.getUsername() + " trying to send a mail to " + getMail.getReceiver().toString()));
 
                     System.out.println(getMail.getReceiver().toString());
                     response = FileManager.sendMail(getMail);
-                    String result;
-                    switch (response.getResponseCode()) {
-                        case 0:
-                            result = "Send successful";
-                            break;
-                        case -1:
-                            result = "Wrong sender";
-                            break;
-                        case -2:
-                            result = "Wrong receiver";
-                            break;
-                        default:
-                            result = "An error occurred sending the mail";
-                            break;
-                    }
 
-                    Platform.runLater(() -> serverModel.addLog(result));
-                    System.out.println(response.getResponseText());
-                    // SCOMMENTA QUESTO E TOGLI IL WRITE UTF
+                    Response finalResponse = response;
+                    Platform.runLater(() -> serverModel.addLog(finalResponse.getResponseText()));
                     outStream.writeObject(response);
-                    //outStream.writeUTF(result);
                     outStream.flush();
 
                     break;
@@ -133,7 +110,7 @@ class ServerThread implements Runnable {
                 case "READ INBOX": {
 
                     User loggedUser = serverModel.retrieveUser(sessID);
-                    if(loggedUser == null) {
+                    if (loggedUser == null) {
                         outStream.writeObject(handleNotAuthorized());
                         return;
                     }
@@ -148,11 +125,19 @@ class ServerThread implements Runnable {
                 case "READ OUTBOX": {
 
                     User loggedUser = serverModel.retrieveUser(sessID);
-                    if(loggedUser == null) {
+                    if (loggedUser == null) {
                         outStream.writeObject(handleNotAuthorized());
                         return;
                     }
-                    List<Mail> outboxMail = FileManager.readMail(loggedUser, FileManager.OUTBOX_NAME);
+                    List<Mail> outboxMail = null;
+                    try {
+                        outboxMail = FileManager.readMail(loggedUser, FileManager.OUTBOX_NAME);
+                    }
+                    catch (IOException e) {
+                        response = new Response(-2, "Internal error. Contact the admin");
+                        System.out.println(e.toString());
+                        e.printStackTrace();
+                    }
 
                     Platform.runLater(() -> serverModel.addLog("Invio l'outbox di " + loggedUser.getUsername()));
 
@@ -173,14 +158,24 @@ class ServerThread implements Runnable {
                     int retCount = 0;
                     int clientCount = inStream.readInt();
 
-                    int inboxCount = FileManager.getNumberInbox(loggedUser);
-                    if (clientCount != inboxCount)
-                        retCount = -1;
+                    response = new Response(0, "Synced mails");
+                    int inboxCount = clientCount;
 
-                    //Platform.runLater(() -> serverModel.addLog("Richiesta di sync da parte di " +
-                    //        loggedUser.getUsername()));
+                    try {
+                        inboxCount = FileManager.getNumberInbox(loggedUser);
+                    }
+                    catch (IOException e) {
+                        response = new Response(-2, "Internal error. Contact the admin");
+                        System.out.println(e.toString());
+                    }
+
+                    if (clientCount != inboxCount) {
+                        retCount = -1;
+                        response = new Response(-1, "Not synced mails");
+                    }
 
                     outStream.writeInt(retCount);
+                    //outStream.writeObject(response);
                     outStream.flush();
 
                     break;
@@ -195,21 +190,17 @@ class ServerThread implements Runnable {
                     }
 
                     Mail deleteMail = (Mail) inStream.readObject();
-                    response = FileManager.deleteMessage(loggedUser, deleteMail);
-                    String retStatus = "";
-                    switch (response.getResponseCode()) {
-                        case 0:
-                            response.setResponseText("Delete successful");
-                            break;
-                        default:
-                            response.setResponseText("Non existent mail");
-                            break;
+                    try {
+                        response = FileManager.deleteMessage(loggedUser, deleteMail);
                     }
-                    Platform.runLater(() -> serverModel.addLog(retStatus));
+                    catch (IOException e) {
+                        System.out.println(e.getMessage());
+                        response = new Response(-2, "can't delete the file");
+                    }
+                    Response finalResponse = response;
+                    Platform.runLater(() -> serverModel.addLog(finalResponse.getResponseText()));
 
-                    // SCOMMENTA QUESTO E TOGLI IL WRITE UTF
                     outStream.writeObject(response);
-                    //outStream.writeUTF(retStatus);
                     outStream.flush();
                     break;
                 }
@@ -235,7 +226,6 @@ class ServerThread implements Runnable {
 
                 default:
                     System.out.println("Wrong command");
-                    response = new Response(-1, "Wrong command");
                     break;
             }
 

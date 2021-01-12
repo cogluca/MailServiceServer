@@ -16,49 +16,20 @@ import java.net.Socket;
 import java.rmi.server.ServerCloneException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
-// TODO IMPORTANT: Implements pool thread
 public class Main extends Application {
 
-    private ServerModel serverModel;
-    private ServerGUIController serverController;
 
 
     @Override
     public void start(Stage primaryStage) throws Exception {
 
-        serverModel = new ServerModel();
         FXMLLoader loader = new FXMLLoader(getClass().getResource("/fxml/ServerGUI.fxml"));
         primaryStage.setTitle("MailingService");
         primaryStage.setScene(new Scene(loader.load(), 600, 395));
-        serverController = loader.getController();
-        serverController.setModel(serverModel);
         primaryStage.show();
-
-        runServerThread();
-
     }
 
 
-    private void runServerThread() {
-        Thread t = new Thread(() -> {
-            try {
-                ServerSocket s = new ServerSocket(8189);
-                serverModel.addLog("Server partito");
-                while (true) {
-                    Socket incoming = s.accept(); // si mette in attesa di una richiesta di connessione e la apre
-
-                    Runnable r = new ServerThread(incoming, serverModel);
-
-                    new Thread(r).start();
-                }
-            }
-            catch (IOException e) {e.printStackTrace();}
-
-        });
-        // Close process when close GUI
-        t.setDaemon(true);
-        t.start();
-    }
 
 
     public static void main(String[] args) {
