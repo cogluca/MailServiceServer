@@ -1,21 +1,17 @@
 package server;
 
-import javafx.beans.property.StringProperty;
 import models.Mail;
 import models.Response;
 import models.User;
 
-import javax.crypto.SealedObject;
 import java.io.*;
 import java.nio.channels.FileChannel;
-import java.nio.channels.FileLock;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Semaphore;
 
 public class FileManager {
 
@@ -66,41 +62,53 @@ public class FileManager {
         if (!userExists(sender)) return new Response(-1, "Wrong Sender");
         if (receiver.isEmpty()) return new Response(-1, "Receiver cannot be empty");
 
-        if (Files.notExists(Paths.get(senderPath))) createUserFolder(senderPath);
+        if (Files.notExists(Paths.get(senderPath)))
+            if(!createUserFolder(senderPath))
+                return new Response(-2, "Error in file system");
 
+        // check if user exists
         for (User u : receiver) {
             String receiverPath = workingDir + File.separator + u.getUsername() + File.separator;
-            File receiverDir = new File(receiverPath);
 
             if (!userExists(u)) return new Response(-1, "One or more receiver does not exists");
 
-            if (!receiverDir.exists()) createUserFolder(receiverPath);
+            if (Files.notExists(Paths.get(receiverPath)))
+                if(!createUserFolder(receiverPath))
+                    return new Response(-2, "Error in file system");
 
         }
 
+
+        // sender user write
         FileChannel fileLock = getLockShared(senderPath +
                 OUTBOX_NAME + File.separator + "lock");
         fileLock.lock(0, Long.MAX_VALUE, true);
+
+        mail.generateUUID();
 
         FileOutputStream fileOut = new FileOutputStream(senderPath +
                 OUTBOX_NAME + File.separator + mail.getId() + ".txt");
         objectOut = new ObjectOutputStream(fileOut);
         mail.setSent(true);
+
         objectOut.writeObject(mail);
         objectOut.close();
 
         fileLock.close();
 
 
+        // receivers user write
+        mail.setSent(false);
         for (User u : receiver) {
             String receiverPath = workingDir + File.separator + u.getUsername() + File.separator;
+            mail.generateUUID();
 
             fileLock = getLockShared(receiverPath + INBOX_NAME + File.separator + "lock");
             fileLock.lock(0, Long.MAX_VALUE, true);
 
             fileOut = new FileOutputStream(receiverPath + INBOX_NAME + File.separator + mail.getId() + ".txt");
             objectOut = new ObjectOutputStream(fileOut);
-            mail.setSent(false);
+
             objectOut.writeObject(mail);
             objectOut.close();
 
@@ -203,23 +211,21 @@ public class FileManager {
         String userPath = workingDir + File.separator + user.getUsername() + File.separator;
 
         if (Files.notExists(Paths.get(userPath))) {
-            createUserFolder(userPath);
+            if (Files.notExists(Paths.get(userPath)))
+                if(!createUserFolder(userPath))
+                    return new Response(-2, "Error in file system");
+
             return new Response(-1, "Message does not exists");
         }
 
         FileChannel fileLock = getLockShared(userPath + path + File.separator + "lock");
         fileLock.lock(0, Long.MAX_VALUE, true);
 
-        FileChannel deleteLock = getLockExclusive(userPath + path + File.separator + deleteMessage.getId() + ".txt");
-        deleteLock.lock();
-
         File toDelete = new File(userPath + path + File.separator + deleteMessage.getId() + ".txt");
         if (!toDelete.delete()) {
-            r.setResponseCode(-1);
-            r.setResponseText("Error deleting the file");
+            r = new Response(-1,"Error deleting the file");
         }
 
-        deleteLock.close();
         fileLock.close();
 
         return r;
@@ -231,7 +237,7 @@ public class FileManager {
      * @param user user to be checked
      * @return true if user exists, false otherwise
      */
-    public static synchronized boolean userExists(User user) throws IOException {
+    public static boolean userExists(User user) throws IOException {
         File userList = new File(workingDir + File.separator + usersFile);
         String line;
 

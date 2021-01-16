@@ -16,15 +16,10 @@ public class ServerModel {
 
     private Map<String, User> sessions = new HashMap<>();
 
-    private ServerSocket serverSocket;
     public ObservableList<String> getLogList() {
         return logList;
     }
 
-
-    public void setServerSocket(ServerSocket serverSocket) {
-        this.serverSocket = serverSocket;
-    }
 
     public ObservableList<String> getLoggedUserList() {
         return loggedUserList;

@@ -28,13 +28,17 @@ public class ServerGUIController implements Initializable {
 
     private ServerModel serverModel;
 
+    private Executor executor;
+
 
     @Override
     public void initialize(URL url, ResourceBundle resourceBundle) {
-        serverModel = new ServerModel();
-        serverLogView.setItems(serverModel.getLogList());
 
+        serverModel = new ServerModel();
+
+        serverLogView.setItems(serverModel.getLogList());
         accountView.setItems(serverModel.getLoggedUserList());
+
         runServerThread();
     }
 
@@ -43,9 +47,9 @@ public class ServerGUIController implements Initializable {
 
         Thread serverThread = new Thread(() -> {
             try {
-                Executor executor = Executors.newFixedThreadPool(6);
+                executor = Executors.newFixedThreadPool(6);
+
                 ServerSocket s = new ServerSocket(8189);
-                serverModel.setServerSocket(s);
                 serverModel.addLog("Server started");
                 while (true) {
 
@@ -58,6 +62,7 @@ public class ServerGUIController implements Initializable {
             }
 
         });
+
         serverThread.setDaemon(true);
         serverThread.start();
     }
@@ -67,13 +72,14 @@ public class ServerGUIController implements Initializable {
 
         ButtonType confirm = new ButtonType("Ok", ButtonBar.ButtonData.OK_DONE);
         ButtonType cancel = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
-        Alert a = new Alert(Alert.AlertType.NONE, "Disconnettendo il server, tutti i client connessi non potranno più interagire", confirm, cancel);
+        Alert a = new Alert(Alert.AlertType.NONE, "Shutting down the server all clients will not be able to interact", confirm, cancel);
         a.setTitle("Disconnect the server");
         a.setHeaderText("Do you want to disconnect the server?");
         a.setResizable(true);
         a.showAndWait().ifPresent(response -> {
-            if (response == confirm) {
+            if (response.equals(confirm)) {
                 Platform.exit();
+                System.exit(0);
             }
         });
 
