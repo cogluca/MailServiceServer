@@ -24,15 +24,31 @@ public class FileManager {
     private static final String usersFile = "users.txt";
 
 
+    /**
+     * Open a filechannel for getting a lock exclusive on a specific file
+     * @param path  path of file on which open the filechannel
+     * @throws IOException if file does not exists or if is not accessible
+     */
     public static FileChannel getLockExclusive(String path) throws IOException {
         return FileChannel.open(Paths.get(path), StandardOpenOption.READ, StandardOpenOption.WRITE);
     }
 
+    /**
+     * Open a filechannel for getting a lock shared on a specific file
+     * @param path  path of file on which open the filechannel
+     * @throws IOException if file does not exists or if is not accessible
+     */
     public static FileChannel getLockShared(String path) throws IOException {
         return FileChannel.open(Paths.get(path), StandardOpenOption.READ);
     }
 
 
+    /**
+     *
+     * @param basePath  user path where the folders and files will be created
+     * @return true if the files are created correctly, false either
+     * @throws IOException if there are error during the file creation
+     */
     private static boolean createUserFolder(String basePath) throws IOException {
         boolean ret = new File(basePath).mkdir();
         ret = ret && new File(basePath + INBOX_NAME).mkdir();
@@ -51,6 +67,7 @@ public class FileManager {
      * 0: send successful
      * -1: Wrong sender
      * -2: Wrong receiver
+     * -3: Generic error in file system
      */
     public static synchronized Response sendMail(Mail mail) throws IOException {
 
@@ -64,17 +81,17 @@ public class FileManager {
 
         if (Files.notExists(Paths.get(senderPath)))
             if(!createUserFolder(senderPath))
-                return new Response(-2, "Error in file system");
+                return new Response(-3, "Error in file system");
 
         // check if user exists
         for (User u : receiver) {
             String receiverPath = workingDir + File.separator + u.getUsername() + File.separator;
 
-            if (!userExists(u)) return new Response(-1, "One or more receiver does not exists");
+            if (!userExists(u)) return new Response(-2, "One or more receiver does not exists");
 
             if (Files.notExists(Paths.get(receiverPath)))
                 if(!createUserFolder(receiverPath))
-                    return new Response(-2, "Error in file system");
+                    return new Response(-3, "Error in file system");
 
         }
 

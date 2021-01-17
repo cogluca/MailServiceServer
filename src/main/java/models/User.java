@@ -4,7 +4,12 @@ import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
 
 import java.io.*;
-// TODO: add timestamp
+
+/**
+ * User model implemented using the Java Beans and Properties standard, implements Externalizable in order to be
+ * transmitted correctly to the server and back through sockets
+ *
+ */
 public class User implements Externalizable {
 
     private static final long serialVersionUID = -3579562875503665712L;
@@ -22,6 +27,8 @@ public class User implements Externalizable {
         return username.get();
     }
 
+    public StringProperty userProperty () {return username;}
+
     public void setUsername(String username) {
         this.username.set(username);
     }
@@ -37,8 +44,19 @@ public class User implements Externalizable {
     }
 
     @Override
-    public void readExternal(ObjectInput in) throws IOException, ClassNotFoundException {
+    public void readExternal(ObjectInput in) throws IOException {
         init();
         setUsername(in.readUTF());
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        User u = (User)obj;
+        return u.getUsername().equals(this.getUsername());
+    }
+
+    @Override
+    public String toString() {
+        return username.getValue();
     }
 }

@@ -15,6 +15,14 @@ import java.util.List;
 
 /**
  * This class handles the client input for one server socket connection.
+ * It is called by the following commands:
+ * -LOGIN:          allows the user to login into the mail server
+ * -SEND:           allows the user to send a mail to a list of users
+ * -READ INBOX:     returns inbox' list of mails to the caller
+ * -READ OUTBOX:    returns outbox' list of mails to the caller
+ * -SYNC:           informs the user whether the client is up to date
+ * -DELETE:         allows the user to delete a specific mail
+ * -LOGOUT:         allows the user to logout from the mail server
  */
 class ServerThread implements Runnable {
 
@@ -114,7 +122,7 @@ class ServerThread implements Runnable {
 
                     List<Mail> outboxMail = FileManager.readMail(loggedUser, FileManager.OUTBOX_NAME);
 
-                    Platform.runLater(() -> serverModel.addLog("Invio l'outbox di " + loggedUser.getUsername()));
+                    Platform.runLater(() -> serverModel.addLog("Sending outbox of " + loggedUser.getUsername()));
                     outStream.writeObject(outboxMail);
                     outStream.flush();
 
@@ -169,9 +177,7 @@ class ServerThread implements Runnable {
                                 serverModel.removeUser(loggedUser.getUsername());
                                 serverModel.destroySession(sessID);
                             }
-
                     );
-
                     break;
                 }
                 default:

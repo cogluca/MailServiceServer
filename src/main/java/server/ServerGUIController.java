@@ -42,7 +42,11 @@ public class ServerGUIController implements Initializable {
         runServerThread();
     }
 
-
+    /**
+     * This method start a thread that open a server socket
+     * and listen on connection. For each client that send a request,
+     * is created a runnable and executed in a thread pool
+     */
     public void runServerThread() {
 
         Thread serverThread = new Thread(() -> {
@@ -68,6 +72,10 @@ public class ServerGUIController implements Initializable {
     }
 
 
+    /**
+     * handle the "disconnect server" button.
+     * Open an alert to ask to confirm the action
+     */
     public void closeServer(ActionEvent actionEvent) {
 
         ButtonType confirm = new ButtonType("Ok", ButtonBar.ButtonData.OK_DONE);
