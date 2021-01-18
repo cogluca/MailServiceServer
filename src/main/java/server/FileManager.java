@@ -69,7 +69,7 @@ public class FileManager {
      * -2: Wrong receiver
      * -3: Generic error in file system
      */
-    public static synchronized Response sendMail(Mail mail) throws IOException {
+    public static Response sendMail(Mail mail) throws IOException {
 
         ObjectOutputStream objectOut;
         User sender = mail.getSender();
@@ -144,7 +144,7 @@ public class FileManager {
      * @param type type of messages: can be INBOX_NAME or OUTBOX_NAME
      * @return list of string (filenames) of messages
      */
-    private static synchronized List<String> getExistingMails(User user, String type) throws IOException {
+    private static List<String> getExistingMails(User user, String type) throws IOException {
 
         List<String> textFiles = new ArrayList<>();
         String userPath = workingDir + File.separator + user.getUsername() + File.separator;
@@ -188,7 +188,7 @@ public class FileManager {
      * @param type type of messages: can be INBOX_NAME or OUTBOX_NAME
      * @return a list of mails according type value (incoming or upcoming list)
      */
-    public static synchronized List<Mail> readMail(User user, String type) throws IOException, ClassNotFoundException {
+    public static List<Mail> readMail(User user, String type) throws IOException, ClassNotFoundException {
         List<String> mails = getExistingMails(user, type);
         List<Mail> retList = new ArrayList<>();
         Mail o;
@@ -220,7 +220,7 @@ public class FileManager {
      * 0: delete successfully
      * -1: generic error
      */
-    public static synchronized Response deleteMessage(User user, Mail deleteMessage) throws IOException {
+    public static Response deleteMessage(User user, Mail deleteMessage) throws IOException {
 
         Response r = new Response(0, "Message deleted successfully");
 
